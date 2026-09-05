@@ -2690,6 +2690,84 @@ dependencies = [
 ]
 
 [[package]]
+name = "pdf-to-ebook-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "pdf-to-ebook-core",
+ "pdf-to-ebook-orchestrator",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "pdf-to-ebook-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "pdf-to-ebook-ebook"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "pdf-to-ebook-core",
+ "tracing",
+ "uuid",
+ "which",
+ "zip",
+]
+
+[[package]]
+name = "pdf-to-ebook-extract"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "blake3",
+ "dirs",
+ "image",
+ "pdf-to-ebook-core",
+ "pdfium-bundled",
+ "pdfium-render",
+ "rayon",
+ "serde",
+ "serde_json",
+ "strsim",
+ "tracing",
+ "unicode-normalization",
+ "ureq 2.12.1",
+]
+
+[[package]]
+name = "pdf-to-ebook-gui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "eframe",
+ "egui",
+ "pdf-to-ebook-core",
+ "pdf-to-ebook-orchestrator",
+ "rfd",
+]
+
+[[package]]
+name = "pdf-to-ebook-orchestrator"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "pdf-to-ebook-core",
+ "pdf-to-ebook-ebook",
+ "pdf-to-ebook-extract",
+ "serde_json",
+ "tracing",
+ "zip",
+]
+
+[[package]]
 name = "pdfium-bundled"
 version = "0.1.1+pdfium-7881"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2727,84 +2805,6 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
-]
-
-[[package]]
-name = "pdftomobi-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "pdftomobi-core",
- "pdftomobi-orchestrator",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "pdftomobi-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "serde",
- "thiserror 2.0.20",
-]
-
-[[package]]
-name = "pdftomobi-ebook"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "pdftomobi-core",
- "tracing",
- "uuid",
- "which",
- "zip",
-]
-
-[[package]]
-name = "pdftomobi-extract"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "blake3",
- "dirs",
- "image",
- "pdfium-bundled",
- "pdfium-render",
- "pdftomobi-core",
- "rayon",
- "serde",
- "serde_json",
- "strsim",
- "tracing",
- "unicode-normalization",
- "ureq 2.12.1",
-]
-
-[[package]]
-name = "pdftomobi-gui"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "eframe",
- "egui",
- "pdftomobi-core",
- "pdftomobi-orchestrator",
- "rfd",
-]
-
-[[package]]
-name = "pdftomobi-orchestrator"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "pdftomobi-core",
- "pdftomobi-ebook",
- "pdftomobi-extract",
- "serde_json",
- "tracing",
- "zip",
 ]
 
 [[package]]

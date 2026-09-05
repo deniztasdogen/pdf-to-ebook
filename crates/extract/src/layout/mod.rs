@@ -14,7 +14,7 @@ use crate::model::{
 };
 use headings::HeadingKind;
 use paragraphs::RawParagraph;
-use pdftomobi_core::{Block, Crop, Document, Meta, PageBreakMode, Span};
+use pdf_to_ebook_core::{Block, Crop, Document, Meta, PageBreakMode, Span};
 
 /// A page must hold at least this many lines of text before a paragraph is
 /// allowed to run off it onto the next page.

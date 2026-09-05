@@ -12,7 +12,7 @@
 //!   viewer, and because page boundaries usually fall *inside* a paragraph, so
 //!   the marker has to be legal inline.
 
-use pdftomobi_core::{Block, Document, Span};
+use pdf_to_ebook_core::{Block, Document, Span};
 
 pub fn page_marker(label: &str) -> String {
     format!("<!-- page: {label} -->")
@@ -109,7 +109,7 @@ fn escape_inline(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdftomobi_core::Meta;
+    use pdf_to_ebook_core::Meta;
 
     fn doc() -> Document {
         Document {
@@ -119,7 +119,7 @@ mod tests {
                 language: "tr".to_string(),
                 source: Some("book.pdf".to_string()),
                 page_count: Some(419),
-                generator: Some("pdftomobi 0.1.0".to_string()),
+                generator: Some("pdf-to-ebook 0.1.0".to_string()),
             },
             blocks: vec![
                 Block::PageBreak { label: "301".to_string() },

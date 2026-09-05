@@ -5,7 +5,7 @@
 //! building, so this has to tolerate a human having edited it — extra blank
 //! lines, reordered front matter, setext headings, missing fields.
 
-use pdftomobi_core::{Block, Document, Error, Meta, Result, Span};
+use pdf_to_ebook_core::{Block, Document, Error, Meta, Result, Span};
 
 /// `<!-- page: 41 -->`
 fn find_page_marker(s: &str) -> Option<(usize, usize, String)> {

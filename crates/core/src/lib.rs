@@ -3,11 +3,13 @@
 
 pub mod config;
 pub mod doc;
+pub mod env;
 pub mod error;
 pub mod progress;
 
 pub use config::{bcp47_for, label_for, parse_ollama_urls, Config, Crop, InputKind, Language,
                  LlmMode, OcrMode, OutputFormat, PageBreakMode, LANGUAGES};
 pub use doc::{Block, Document, Meta, Span};
+pub use env::Defaults;
 pub use error::{Error, Result};
 pub use progress::{Event, Reporter, Stage};

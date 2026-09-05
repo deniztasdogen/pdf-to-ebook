@@ -3,7 +3,7 @@
 //! There is no usable native Rust MOBI writer, so this is the one place the
 //! pipeline depends on an external tool. Everything upstream is pure Rust.
 
-use pdftomobi_core::{Error, OutputFormat, Result};
+use pdf_to_ebook_core::{Error, OutputFormat, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -12,14 +12,16 @@ const HINT: &str = "install calibre from https://calibre-ebook.com (macOS: \
 
 /// Locate `ebook-convert`.
 ///
-/// On macOS the binary lives inside the app bundle and is not on `PATH` by
-/// default, so the bundle is checked explicitly before giving up.
+/// `EBOOK_CONVERT`, from the environment or `.env`, wins when it names a file
+/// that exists. Otherwise `PATH`, and then the usual install locations: on
+/// macOS the binary lives inside the app bundle and is not on `PATH` by
+/// default, so `which ebook-convert` failing does not mean calibre is missing.
 pub fn find_converter() -> Result<PathBuf> {
-    if let Ok(p) = std::env::var("EBOOK_CONVERT") {
-        let p = PathBuf::from(p);
+    if let Some(p) = pdf_to_ebook_core::env::path("EBOOK_CONVERT") {
         if p.is_file() {
             return Ok(p);
         }
+        tracing::warn!("EBOOK_CONVERT names {}, which is not a file", p.display());
     }
     if let Ok(p) = which::which("ebook-convert") {
         return Ok(p);

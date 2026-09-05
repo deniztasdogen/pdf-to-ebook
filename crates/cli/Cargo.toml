@@ -1,16 +1,16 @@
 [package]
-name = "pdftomobi-cli"
+name = "pdf-to-ebook-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "pdftomobi"
+name = "pdf-to-ebook"
 path = "src/main.rs"
 
 [dependencies]
-pdftomobi-core         = { workspace = true }
-pdftomobi-orchestrator = { workspace = true }
+pdf-to-ebook-core         = { workspace = true }
+pdf-to-ebook-orchestrator = { workspace = true }
 anyhow = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 tracing = { workspace = true }

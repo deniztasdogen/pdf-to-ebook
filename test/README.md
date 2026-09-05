@@ -109,9 +109,9 @@ be rebuilt:
 - `lady-susan-p2-9.lines.txt` — a line-level dump (text plus coordinates) of
   `lady-susan.pdf` pages 2–9, the reference for OCR accuracy on
   `lady-susan-scanned.pdf` and for line-assembly regression tests. The same
-  information comes out of `pdftomobi test/lady-susan.pdf --pages 2-9 --format
-  json`, which dumps the page layout — a different file format, not a byte-level
-  restore.
+  information comes out of `pdf-to-ebook test/lady-susan.pdf --pages 2-9
+  --format json`, which dumps the page layout — a different file format, not a
+  byte-level restore.
 - `under-lock-and-key.archive-ocr.txt` — archive.org's own OCR of that scan, the
   `_djvu.txt` of item `underlockkeyorma0030shir`. Downloadable again from the
   same item. A second opinion, never a gold standard: it has its own errors.

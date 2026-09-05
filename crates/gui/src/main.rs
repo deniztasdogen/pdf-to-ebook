@@ -8,8 +8,8 @@
 mod job;
 
 use job::{Job, Msg, Summary};
-use pdftomobi_core::{
-    Config, Event, LlmMode, OcrMode, OutputFormat, PageBreakMode, Stage, LANGUAGES,
+use pdf_to_ebook_core::{
+    Config, Defaults, Event, LlmMode, OcrMode, OutputFormat, PageBreakMode, Stage, LANGUAGES,
 };
 use std::path::PathBuf;
 
@@ -22,7 +22,7 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     eframe::run_native(
-        "pdftomobi",
+        "pdf-to-ebook",
         options,
         Box::new(|_cc| Ok(Box::new(App::default()))),
     )
@@ -55,11 +55,18 @@ struct App {
 }
 
 impl Default for App {
+    /// The model and the ollama server come from the environment and `.env`,
+    /// so the advanced boxes open on whatever this machine is set up for
+    /// rather than on a localhost that may not be running anything.
     fn default() -> Self {
+        let env = Defaults::from_env();
         App {
             input: None,
             out_dir: None,
-            lang_index: 0,
+            lang_index: LANGUAGES
+                .iter()
+                .position(|l| l.tesseract == env.lang)
+                .unwrap_or(0),
             want_md: true,
             want_epub: true,
             want_mobi: false,
@@ -67,8 +74,8 @@ impl Default for App {
             ocr: OcrMode::Auto,
             llm: LlmMode::Auto,
             page_breaks: PageBreakMode::Anchors,
-            llm_model: "gemma4:e4b".to_string(),
-            ollama_url: "http://localhost:11434".to_string(),
+            llm_model: env.llm_model,
+            ollama_url: env.ollama_url,
             title: String::new(),
             author: String::new(),
             show_advanced: false,
@@ -105,7 +112,7 @@ impl App {
 
     fn build_config(&self) -> Option<Config> {
         let input = self.input.clone()?;
-        let mut cfg = Config::new(input);
+        let mut cfg = Config::with_defaults(input, &Defaults::from_env());
         if let Some(d) = &self.out_dir {
             cfg.out_dir = d.clone();
         }
@@ -117,7 +124,7 @@ impl App {
         cfg.llm_model = self.llm_model.clone();
         // A bad list is not worth refusing a conversion over: fall back to
         // the field as typed and let preflight report it.
-        cfg.ollama_urls = pdftomobi_core::parse_ollama_urls(&self.ollama_url)
+        cfg.ollama_urls = pdf_to_ebook_core::parse_ollama_urls(&self.ollama_url)
             .unwrap_or_else(|_| vec![self.ollama_url.clone()]);
         cfg.title = (!self.title.trim().is_empty()).then(|| self.title.trim().to_string());
         cfg.author = (!self.author.trim().is_empty()).then(|| self.author.trim().to_string());
@@ -290,7 +297,7 @@ impl eframe::App for App {
                 ui.add_enabled(!busy, egui::Checkbox::new(&mut self.want_mobi, "MOBI"));
                 ui.add_enabled(!busy, egui::Checkbox::new(&mut self.want_azw3, "AZW3"));
             });
-            if (self.want_mobi || self.want_azw3) && !pdftomobi_ebook_available() {
+            if (self.want_mobi || self.want_azw3) && !kindle_converter_available() {
                 ui.label(
                     egui::RichText::new(
                         "⚠ Kindle formats need calibre installed (brew install --cask calibre).",
@@ -491,9 +498,9 @@ impl eframe::App for App {
 
 /// Whether calibre is present, so the UI can warn before a long run rather
 /// than after it.
-fn pdftomobi_ebook_available() -> bool {
+fn kindle_converter_available() -> bool {
     // Checked lazily and cached: probing the filesystem every frame is wasteful.
     use std::sync::OnceLock;
     static AVAILABLE: OnceLock<bool> = OnceLock::new();
-    *AVAILABLE.get_or_init(pdftomobi_orchestrator::converter_available)
+    *AVAILABLE.get_or_init(pdf_to_ebook_orchestrator::converter_available)
 }

@@ -1,6 +1,6 @@
 //! Running a conversion off the UI thread.
 
-use pdftomobi_core::{Config, Event, Reporter, Stage};
+use pdf_to_ebook_core::{Config, Event, Reporter, Stage};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -61,7 +61,7 @@ impl Job {
         };
         std::thread::spawn(move || {
             let started = std::time::Instant::now();
-            let result = pdftomobi_orchestrator::run(&cfg, &reporter);
+            let result = pdf_to_ebook_orchestrator::run(&cfg, &reporter);
             let msg = match result {
                 Ok(o) => Msg::Finished(Ok(Summary {
                     written: o.written,

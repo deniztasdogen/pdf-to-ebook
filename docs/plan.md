@@ -1,4 +1,4 @@
-# pdfToMobi — the original plan
+# pdf-to-ebook — the original plan
 
 Date: 2026-09-04. **Kept for the record.** This is the plan as written before
 any code existed. For what was actually built, read
@@ -480,7 +480,7 @@ src/
 ## 5. CLI
 
 ```
-pdftomobi <input.pdf> [OPTIONS]
+pdf-to-ebook <input.pdf> [OPTIONS]
 
   -o, --out <PATH>            output basename (default: input stem)
   -f, --format <LIST>         epub,mobi,azw3,txt,json   [default: epub,txt]

@@ -1,11 +1,11 @@
 [package]
-name = "pdftomobi-ebook"
+name = "pdf-to-ebook-ebook"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-pdftomobi-core = { workspace = true }
+pdf-to-ebook-core = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 

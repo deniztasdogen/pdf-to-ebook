@@ -12,14 +12,14 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-license = "MIT OR Apache-2.0"
+license = "Unlicense"
 rust-version = "1.88"
 
 [workspace.dependencies]
-pdftomobi-core         = { path = "crates/core" }
-pdftomobi-extract      = { path = "crates/extract" }
-pdftomobi-ebook        = { path = "crates/ebook" }
-pdftomobi-orchestrator = { path = "crates/orchestrator" }
+pdf-to-ebook-core         = { path = "crates/core" }
+pdf-to-ebook-extract      = { path = "crates/extract" }
+pdf-to-ebook-ebook        = { path = "crates/ebook" }
+pdf-to-ebook-orchestrator = { path = "crates/orchestrator" }
 
 anyhow      = "1"
 thiserror   = "2"

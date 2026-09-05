@@ -5,15 +5,16 @@
 
 use clap::parser::ValueSource;
 use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser};
-use pdftomobi_core::{
-    Config, Crop, Event, InputKind, LlmMode, OcrMode, OutputFormat, PageBreakMode, Reporter, Stage,
+use pdf_to_ebook_core::{
+    Config, Crop, Defaults, Event, InputKind, LlmMode, OcrMode, OutputFormat, PageBreakMode,
+    Reporter, Stage,
 };
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "pdftomobi",
+    name = "pdf-to-ebook",
     about = "Build an EPUB or Kindle book from a PDF or a markdown file",
     long_about = "Build an EPUB or Kindle book from a PDF or a markdown file.\n\n\
                   A PDF goes through the whole pipeline: text layer, OCR where \
@@ -38,7 +39,8 @@ struct Args {
 
     /// OCR language, as a tesseract code (eng, tur, nld, …). For a markdown
     /// input it only supplies a language the front matter does not already give.
-    #[arg(short, long, default_value = "eng")]
+    /// Defaults to PDF_TO_EBOOK_OCR_LANG, else eng.
+    #[arg(short, long, default_value_t = Defaults::from_env().lang)]
     lang: String,
 
     /// auto = OCR only pages with no text layer.
@@ -51,21 +53,23 @@ struct Args {
     #[arg(long, value_parser = ["auto", "always", "suspicious", "never"], default_value = "auto")]
     llm: String,
 
-    #[arg(long, default_value = "gemma4:e4b")]
+    /// The ollama model to proofread with. Defaults to PDF_TO_EBOOK_LLM_MODEL.
+    #[arg(long, default_value_t = Defaults::from_env().llm_model)]
     llm_model: String,
 
     /// Ollama server, or a comma-separated list of them. The paragraph
     /// batches are shared out over the list as each server comes free, so two
     /// servers halve the wait. Naming one server twice runs two batches on it.
-    #[arg(long, default_value = "http://localhost:11434")]
+    /// Defaults to PDF_TO_EBOOK_OLLAMA_URL, else OLLAMA_HOST, else localhost.
+    #[arg(long, default_value_t = Defaults::from_env().ollama_url)]
     ollama_url: String,
 
     /// anchors = invisible EPUB page markers; hard = forced breaks.
     #[arg(long, value_parser = ["anchors", "hard", "none"], default_value = "anchors")]
     page_breaks: String,
 
-    /// Rasterisation resolution used for OCR.
-    #[arg(long, default_value_t = 300.0)]
+    /// Rasterisation resolution used for OCR. Defaults to PDF_TO_EBOOK_DPI.
+    #[arg(long, default_value_t = Defaults::from_env().dpi)]
     dpi: f32,
 
     /// Only these pages, 1-based inclusive, e.g. `41-46`. Useful when tuning.
@@ -197,7 +201,10 @@ fn main() -> anyhow::Result<()> {
     // the user typed from one that merely has a default.
     let matches = Args::command().get_matches();
     let args = Args::from_arg_matches(&matches)?;
-    let mut cfg = Config::new(&args.input);
+    // The flags above already default to these, so this only matters for the
+    // settings no flag covers. Precedence is flag, then environment, then
+    // `.env`, then the compiled-in default.
+    let mut cfg = Config::with_defaults(&args.input, &Defaults::from_env());
 
     if let Some(o) = &args.out {
         // A path with an extension names the file; otherwise it is a directory.
@@ -226,7 +233,7 @@ fn main() -> anyhow::Result<()> {
     };
     cfg.llm_model = args.llm_model;
     cfg.ollama_urls =
-        pdftomobi_core::parse_ollama_urls(&args.ollama_url).map_err(|e| anyhow::anyhow!(e))?;
+        pdf_to_ebook_core::parse_ollama_urls(&args.ollama_url).map_err(|e| anyhow::anyhow!(e))?;
     cfg.page_breaks = match args.page_breaks.as_str() {
         "hard" => PageBreakMode::Hard,
         "none" => PageBreakMode::None,
@@ -259,7 +266,7 @@ fn main() -> anyhow::Result<()> {
         last_total: AtomicUsize::new(0),
     };
     let started = std::time::Instant::now();
-    let outcome = pdftomobi_orchestrator::run(&cfg, &rep)?;
+    let outcome = pdf_to_ebook_orchestrator::run(&cfg, &rep)?;
 
     eprintln!();
     eprintln!(

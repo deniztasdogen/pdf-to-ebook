@@ -1,4 +1,4 @@
-# pdfToMobi docs
+# pdf-to-ebook docs
 
 PDF → EPUB / Kindle text extractor. Rust, four layers.
 
@@ -7,7 +7,7 @@ PDF → EPUB / Kindle text extractor. Rust, four layers.
 | [`architecture.md`](architecture.md) | The four layers as built, the markdown files that are the contract between them, and every pipeline stage |
 | [`findings.md`](findings.md) | Evidence. Sections 1-6 from the initial investigation, section 7 from running the code over the whole corpus, section 8 measured quality, section 9 known limitations |
 | [`plan.md`](plan.md) | The original plan, kept for the record, with a status note on what changed |
-| [`../test/README.md`](../test/README.md) | The eight test fixtures and what each one exercises |
+| [`../test/README.md`](../test/README.md) | The seven test fixtures and what each one exercises |
 
 ## Quick start
 
@@ -15,20 +15,25 @@ PDF → EPUB / Kindle text extractor. Rust, four layers.
 cargo build --release
 
 # GUI: pick a file, a language and the formats
-./target/release/pdftomobi-gui
+./target/release/pdf-to-ebook-gui
 
 # CLI
-./target/release/pdftomobi book.pdf --lang tur --format md,epub
-./target/release/pdftomobi book.pdf --lang eng --format epub,mobi --llm suspicious
-./target/release/pdftomobi book.pdf --pages 40-45 --format md    # fast iteration
+./target/release/pdf-to-ebook book.pdf --lang tur --format md,epub
+./target/release/pdf-to-ebook book.pdf --lang eng --format epub,mobi --llm suspicious
+./target/release/pdf-to-ebook book.pdf --pages 40-45 --format md    # fast iteration
 
 # Proofread a markdown file from an earlier run, without touching the PDF again
-./target/release/pdftomobi out/book.md --llm always --format epub
+./target/release/pdf-to-ebook out/book.md --llm always --format epub
 ```
 
 Needs `tesseract` (+ language data) only for pages without a text layer,
 `calibre` only for MOBI/AZW3, and `ollama` only for proofreading. A born-digital
 PDF to EPUB needs none of them.
+
+Where those tools are, which ollama servers to use and which model to ask are
+settings, not constants: copy `.env.example` to `.env` and edit. The
+proofreading prompt is a file too, under `prompts/`. See the Configuration
+section of the [top-level README](../README.md).
 
 ## Headline answers
 
@@ -61,7 +66,7 @@ though the pipeline never runs OCR on it.
 | OCR accuracy against known-good text | **99.26% word**, 99.86% character |
 | Turkish book against pdfium's own text | **99.17% word** |
 | 419-page book: text, layout, EPUB | **6.7s** |
-| Tests | **113 passing** |
+| Tests | **143 passing** |
 
 ## Traps that cost real time
 

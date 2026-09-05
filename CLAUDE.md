@@ -1,4 +1,4 @@
-# pdfToMobi — working notes
+# pdf-to-ebook — working notes
 
 Rust workspace. Builds an EPUB or Kindle book from a **PDF** or from a
 **markdown file**. Keeps paragraphs and printed page breaks; ignores images.
@@ -14,7 +14,7 @@ Run from the repo root.
 
 ```sh
 cargo build --release           # binaries land in target/release/
-cargo test --workspace          # 135 tests, all should pass
+cargo test --workspace          # 143 tests, all should pass
 cargo clippy --workspace --all-targets
 ```
 
@@ -39,7 +39,7 @@ Each is a crate and depends only on the layer below it plus `core`.
 
 | Crate | Layer | Owns |
 |---|---|---|
-| `crates/core` | 0 | `Config`, `Document`/`Block`/`Span`, `Error`, progress events. **No PDF, OCR, HTTP or UI code** — that is what lets the GUI depend on it without pulling in pdfium. |
+| `crates/core` | 0 | `Config`, `Document`/`Block`/`Span`, `Error`, progress events, and `env.rs` (`.env` + machine settings). **No PDF, OCR, HTTP or UI code** — that is what lets the GUI depend on it without pulling in pdfium. |
 | `crates/cli`, `crates/gui` | 1 | Build a `Config`, hand it to layer 2. No conversion logic. |
 | `crates/orchestrator` | 2 | Order of operations, and nothing else. Dispatches on input kind, writes the report. |
 | `crates/extract` | 3 | PDF → markdown: text layer, OCR, layout analysis, LLM proofreading. Knows nothing about EPUB. The proofreading pass takes a `Document`, so layer 2 can point it at a markdown file. |
@@ -85,19 +85,19 @@ usually break mid-paragraph and the paragraph is kept whole.
 
 ## CLI
 
-Binary: `pdftomobi` (`crates/cli`). `--help` is accurate and worth reading.
+Binary: `pdf-to-ebook` (`crates/cli`). `--help` is accurate and worth reading.
 
 ```sh
 # From a PDF — the whole pipeline
-pdftomobi book.pdf --lang tur --format md,epub
-pdftomobi book.pdf --lang eng --format epub,mobi --llm suspicious
-pdftomobi book.pdf --llm always --ollama-url http://desktop:11434,http://laptop:11434
-pdftomobi book.pdf --pages 40-45 --format md          # fast iteration while tuning
+pdf-to-ebook book.pdf --lang tur --format md,epub
+pdf-to-ebook book.pdf --lang eng --format epub,mobi --llm suspicious
+pdf-to-ebook book.pdf --llm always --ollama-url http://desktop:11434,http://laptop:11434
+pdf-to-ebook book.pdf --pages 40-45 --format md          # fast iteration while tuning
 
 # From markdown — no extraction, but the model still runs if asked
-pdftomobi notes.md --format epub
-pdftomobi book.md --format mobi,azw3 --title "A Title" --author "A Name"
-pdftomobi book.md --llm always --format epub   # proofread an earlier run's markdown
+pdf-to-ebook notes.md --format epub
+pdf-to-ebook book.md --format mobi,azw3 --title "A Title" --author "A Name"
+pdf-to-ebook book.md --llm always --format epub   # proofread an earlier run's markdown
 ```
 
 - `--format` is a comma list: `md, epub, mobi, azw3, json`. Markdown is written
@@ -130,13 +130,79 @@ pdftomobi book.md --llm always --format epub   # proofread an earlier run's mark
   about work that never happened. The proofreading section follows the model,
   not the input kind, so it appears whenever the model ran.
 
-The GUI (`pdftomobi-gui`) is **PDF only**; its picker filters to `.pdf`. The
+The GUI (`pdf-to-ebook-gui`) is **PDF only**; its picker filters to `.pdf`. The
 orchestrator would handle markdown for it already if the filter were widened.
+
+## The two extension points
+
+Both are files. Neither needs a rebuild, and both are read through
+`core::env`, so a `.env` reaches them.
+
+### `.env` — machine settings
+
+`.env.example` is the documented list; `.env` is gitignored. Precedence is
+**flag, then real environment variable, then `.env`, then the compiled-in
+default in `core::env::defaults`**.
+
+`PDF_TO_EBOOK_OLLAMA_URL` (falls back to `OLLAMA_HOST`),
+`PDF_TO_EBOOK_LLM_MODEL`, `PDF_TO_EBOOK_OCR_LANG`, `PDF_TO_EBOOK_DPI`,
+`PDF_TO_EBOOK_PROMPT_DIR`, `PDF_TO_EBOOK_CACHE_DIR`, `TESSERACT_BIN`,
+`EBOOK_CONVERT`. `PDF_TO_EBOOK_ENV_FILE` names a `.env` outright; otherwise
+the nearest one at or above the working directory is used.
+
+Two rules that are load-bearing, not style:
+
+- **`Config::new` must never read the environment.** It uses the compiled-in
+  defaults; `Config::with_defaults` is what layer 1 calls. Wire a new setting
+  into `Defaults` and the front ends, not into `Config::new`, or every test
+  that builds a `Config` starts depending on the developer's `.env`.
+- **Never `std::env::set_var`.** The file is parsed into a map and read from
+  there. OCR and proofreading run on thread pools, and mutating the process
+  environment underneath them is unsound.
+
+Only settings about the **machine** belong here. `--format`, `--pages` and the
+crop describe the book in front of you.
+
+### `prompts/` — the proofreading prompt
+
+```
+prompts/proofread.md          general: intro, rule 0, fault classes, limits
+prompts/languages/<code>.md   what is only true of that language
+prompts/languages/README.md   how to add one
+```
+
+`## name` — exactly two hashes — opens a section; every other heading level is
+prose and is dropped. Text before the first `-` is the section's lead-in, one
+paragraph. Each `-` is one rule, rejoined from however far it wrapped. Rules
+are **numbered at render time**, continuously across sections, so a language
+pack splices into the middle without renumbering and drops out without a gap.
+A section with no rules is skipped lead-in and all.
+
+- Both files are `include_str!`'d, so an installed binary needs no `prompts/`
+  next to it. `PDF_TO_EBOOK_PROMPT_DIR` overrides them **per file**.
+- A language pack is looked up by tesseract code, the same one `--lang` takes.
+  `## label` is optional when the code is in `LANGUAGES`; give it to use a code
+  the table has never heard of.
+- **The cache key carries `blake3` of the rendered prompt.** `PROMPT_VERSION`
+  now only tracks the *request* shape. Do not go back to bumping an integer for
+  a prompt change — a file can be edited between two runs and an integer cannot
+  notice.
+- Tests assert against `Prompts::builtin()`, never `Prompts::load()`, so a
+  developer with `PDF_TO_EBOOK_PROMPT_DIR` set still gets an honest
+  `cargo test`. The override mechanism has its own tests, against a temp
+  directory.
+- `cargo test -p pdf-to-ebook-extract show_the_prompt -- --ignored --nocapture`
+  prints the rendered prompt.
+
+Re-tuning is not free: see `docs/findings.md` §4.5 and the note below about the
+scoring corpus having been removed. Rule 0 must precede the quote rules and the
+limits must come last — both were measured, and both lost the other way round.
 
 ## External tools
 
 All optional, each needed only for one path. A born-digital PDF to EPUB needs
-none of them.
+none of them. Every override below is read through `core::env`, so it can be
+set in `.env` as well as in the environment.
 
 | For | Needs | Override |
 |---|---|---|
@@ -155,9 +221,12 @@ calibre's binary lives inside the app bundle and is not on `PATH`;
 `ebook::mobi::find_converter` checks `/Applications/calibre.app/...` explicitly,
 so `which ebook-convert` failing does not mean MOBI is unavailable.
 
-Model replies are cached in `~/Library/Caches/pdftomobi/llm/<model>/`, keyed by
-`blake3(prompt version + text)`. A re-run of a long book costs nothing;
-`--no-cache` bypasses it.
+Model replies are cached in `~/Library/Caches/pdf-to-ebook/llm/<model>/`
+(`PDF_TO_EBOOK_CACHE_DIR` moves it), keyed by
+`blake3(prompt fingerprint + text)` where the fingerprint covers the request
+shape *and* the rendered prompt. A
+re-run of a long book costs nothing; `--no-cache` bypasses it, and editing
+anything in `prompts/` invalidates it by construction.
 
 ## Tests
 
@@ -167,7 +236,7 @@ there is no integration-test convention to follow yet. Temp files follow the
 house pattern:
 
 ```rust
-let dir = std::env::temp_dir().join(format!("pdftomobi-<what>-{}", std::process::id()));
+let dir = std::env::temp_dir().join(format!("pdf-to-ebook-<what>-{}", std::process::id()));
 ```
 
 Test names are full sentences describing the behaviour
@@ -199,8 +268,8 @@ there as informational.
 
 ## Things that will bite
 
-- `out/` and `target/` are gitignored, as are `*.epub`, `*.mobi`, `*.azw3` and
-  `*.report.md`. `out/` holds outputs from earlier runs over the fixtures — they
+- `out/` and `target/` are gitignored, as are `.env`, `*.epub`, `*.mobi`,
+  `*.azw3` and `*.report.md`. `out/` holds outputs from earlier runs over the fixtures — they
   are useful as markdown inputs for testing layer 4, but they are not fixtures
   and are not checked.
 - Calibre's KF8 writer **discards** the EPUB pagebreak anchors and `page-list`.

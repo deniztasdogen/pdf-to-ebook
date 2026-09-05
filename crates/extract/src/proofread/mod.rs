@@ -16,7 +16,7 @@
 //! 4. **A disk cache**, so a re-run costs nothing and a long job is resumable.
 //! 5. **A prompt that names the artefact classes.** A generic "fix OCR errors"
 //!    instruction left the largest class — mangled quotation marks, a third of
-//!    all repairs — entirely unaddressed. See `system_prompt`.
+//!    all repairs — entirely unaddressed. See `prompts/proofread.md`.
 //!
 //! The sixth thing is not a safeguard but the shape of the run: the batches are
 //! handed out from **one queue to one worker per configured server**, so a book
@@ -26,152 +26,26 @@
 //! batch back to the others instead of taking it down with it.
 
 mod cache;
-mod language;
 mod pass;
+mod prompt;
 
 pub use cache::Cache;
-pub use language::{prompt_language, PromptLanguage};
 pub use pass::{proofread_document, wants_llm, Pass};
+pub use prompt::{PromptLanguage, Prompts};
 
-use pdftomobi_core::{Error, Result};
+use pdf_to_ebook_core::{Error, Result};
 use std::collections::VecDeque;
+use std::path::PathBuf;
 use std::sync::Mutex;
 
-/// The task, the failure modes, and the shape of the answer.
+/// Bump when the **request shape** changes — the JSON body, the options, the
+/// way a reply is read — so old cache entries are not reused for a different
+/// question.
 ///
-/// The prompt is assembled from two halves. This function owns the half that
-/// holds for any Latin-script scan; `language` carries the half that does not
-/// — the fault classes only one language has — and comes from the language the
-/// user picked, `--lang` on the CLI or the language box in the GUI. Everything
-/// the model is told about `ğ`, dotted `İ` or Turkish apostrophes arrives that
-/// way, so an English book is no longer handed nine rules of Turkish
-/// orthography and a page of Turkish examples.
-///
-/// The rule list is not generic advice: it is the artefact classes measured on
-/// the Turkish scan, in descending order of frequency, because a small model
-/// follows a short ranked list far better than a paragraph of prose. Mangled
-/// quotation marks alone were a third of all the repairs needed on the
-/// 11-page sample, and the first prompt never mentioned quotes at all.
-///
-/// Rule 0 is the one that stops the most damage, and it is first because it
-/// lost when it was last. A span is often a *fragment* of a sentence, because a
-/// printed page can break mid-paragraph and each side of the break is offered
-/// separately. Without being told, the model "helpfully" balances the quotation
-/// marks on both halves and invents punctuation that was never there.
-///
-/// Stated *after* the quote rules it contradicts, it was ignored: the model
-/// started appending a second `?` to spans that already ended `?"`. Overreach
-/// doubled, cancelling out a halving of the misses. `drift_reason` now refuses
-/// pure end-additions as well, because a prompt rule alone did not hold.
-///
-/// What was measured about the ordering is that rule 0 must precede the quote
-/// rules and the limits must come last. Where the language pack sits among the
-/// fault classes was not measured; it goes after the general ones, which keeps
-/// both of those orderings intact.
-fn system_prompt(language: Option<PromptLanguage>) -> String {
-    let named = match language {
-        Some(l) => format!("The text is in {}. ", l.label),
-        None => String::new(),
-    };
-    let mut out = format!(
-        "\
-You are a strict OCR proofreader. {named}You receive a JSON object with a \
-\"paragraphs\" array of strings scanned from a printed book. Repair the scanning \
-damage and change nothing else.
-
-The first and most important rule, which overrides every rule after it:
-0. {FRAGMENT_RULE}
-
-Then fix these, in this order of importance:
-"
-    );
-
-    let mut n = 0;
-    number_into(&mut out, &mut n, GENERAL_RULES);
-    if let Some(l) = language {
-        if !l.rules.is_empty() {
-            out.push_str(&format!(
-                "\nThese faults are specific to {}, and belong in the list above:\n",
-                l.label
-            ));
-            number_into(&mut out, &mut n, l.rules);
-        }
-    }
-    out.push_str("\nThen obey these limits:\n");
-    number_into(&mut out, &mut n, LIMITS);
-
-    out.push_str(
-        "\nReturn ONLY a JSON object with a \"paragraphs\" array of the same length and \
-order, containing the corrected strings.",
-    );
-    out
-}
-
-/// The rules are numbered here rather than in their own text, so that a
-/// language pack can be spliced into the middle of the list without any of the
-/// numbers being written by hand — and be left out again, for a language that
-/// has no pack, without leaving a gap in them.
-fn number_into(out: &mut String, n: &mut usize, rules: &[&str]) {
-    for rule in rules {
-        *n += 1;
-        out.push_str(&format!("{n}. {rule}\n"));
-    }
-}
-
-/// Rule 0. Language-neutral: it is about where the *page* broke, not about what
-/// language was printed on it.
-const FRAGMENT_RULE: &str = "\
-NEVER make a string longer at its start or at its end. A string often begins \
-or ends in the MIDDLE of a sentence or even a word, because the printed page \
-broke there. That is not damage and must not be repaired. Never append a \
-quotation mark, a full stop or a question mark to the end. Never put a quotation \
-mark in front of the first word. Never finish a cut-off word. If a string \
-already ends in `.\"` or `?\"` or `!\"`, it is correct: leave it alone.";
-
-/// The fault classes that are about the scanner and the shapes of Latin
-/// letters, not about a language. The examples are deliberately English rather
-/// than the Turkish ones they were derived from: the class is what carries, and
-/// a Turkish example in an English book's prompt is noise. The Turkish examples
-/// are not lost — they moved into the Turkish pack in `language.rs`.
-const GENERAL_RULES: &[&str] = &[
-    "Mangled closing quotation mark, the commonest fault of all. A run of \
-speech that ends in `:'` ends in `.\"` — the colon is a misread full stop, so \
-DELETE the colon; `home:'` becomes `home.\"` and never `home:\"`. The same junk \
-also appears as `''`, `,`, `?,`, `.u`, `.,,`, `t'` and `r'`; replace the whole \
-run with `.\"` or `?\"` or `!\"` as the sense requires. Replace it — do not add \
-to it, and do not touch an ending that is already correct.",
-    "Mangled opening quotation mark. When speech starts with the junk `•`, `'`, \
-`ee`, `1\\` or `J\\`, REPLACE that junk with `\"` and recover the first word. \
-Only when such junk is there; never introduce a quotation mark otherwise.",
-    "The character `�` is a single letter or mark that failed to decode. It can \
-be ANY character — work out from the rest of the word which one it is, and \
-never delete it and leave the word short (mo�her -> mother, hou�e -> house, \
-went home� -> went home.).",
-    "`m` misread as `rn` (surnrner -> summer, rnany -> many), and the reverse, \
-an `rn` welded into an `m`.",
-    "Missing letters, usually a doubled consonant, sometimes with a stray mark \
-where they were (diferent -> different, sudden.y -> suddenly).",
-    "Tall thin letters swapped inside a word: `i`/`l`/`k`/`d`.",
-    "`b` misread for `h` or `t`.",
-    "Words wrongly split or joined (some thing -> something, ofthe -> of the).",
-];
-
-/// The limits, stated last because they are refusals rather than repairs — and
-/// language-neutral for the same reason: they are about what the model may do,
-/// not about what the scanner did.
-const LIMITS: &[&str] = &[
-    "Never replace a word with a DIFFERENT word. Only repair the letters of the \
-word that is there. If you cannot recover a word with confidence, return that \
-part exactly as you received it. A word that is already correct must come back \
-untouched.",
-    "Do not translate, rewrite, rephrase, modernise, summarise, add or remove \
-content. Preserve the language, wording, style and order exactly.",
-    "Many strings need no change at all. Returning a string exactly as you \
-received it is the correct answer whenever you see no clear scanning damage.",
-];
-
-/// Bump when the prompt or the request shape changes, so old cache entries are
-/// not reused for a different question.
+/// The prompt itself no longer needs a bump. It is a file now, and a file can
+/// be edited between two runs, so the cache key carries a hash of the rendered
+/// prompt as well (see `Proofreader::fingerprint`). Editing `prompts/` costs a
+/// full re-run and cannot silently serve an answer to the old question.
 ///
 /// 2: ranked artefact-class prompt, plus the fragment and no-substitution rules.
 /// 3: fragment rule promoted above the quote rules, which were overriding it.
@@ -224,10 +98,16 @@ pub struct Proofreader {
     /// twice, which is how two batches are run against one server.
     endpoints: Vec<String>,
     model: String,
-    /// The name and the language-specific rules for the prompt, e.g. `Turkish`
-    /// and its `ğ` rule. `None` for a tesseract code we have no name for —
-    /// better to say nothing than to name the wrong language.
-    language: Option<PromptLanguage>,
+    /// The system prompt, rendered once. Building it means reading files, and
+    /// it is the same string for every batch of the run.
+    system: String,
+    /// `blake3(request shape + rendered prompt)`, the other half of the cache
+    /// key. An edit to anything in `prompts/` changes it, so a stale answer to
+    /// a prompt that no longer exists is never served.
+    fingerprint: String,
+    /// Where the prompt came from, when it was not the built-in one. Reported,
+    /// because a run whose prompt is not the one in the repo should say so.
+    prompt_source: Option<PathBuf>,
     cache: Option<Cache>,
     /// One agent for every worker. ureq's agent is a connection pool keyed by
     /// host and is meant to be shared, so there is nothing to gain from one
@@ -282,13 +162,17 @@ impl Proofreader {
     /// `urls` is the list of servers to spread the work over. One is the
     /// ordinary case and behaves exactly as it always did.
     pub fn new(urls: &[String], model: &str, lang: &str, use_cache: bool) -> Self {
+        let prompts = Prompts::load();
+        let system = prompts.system_prompt(prompts.language(lang).as_ref());
         Proofreader {
             endpoints: urls
                 .iter()
                 .map(|u| u.trim_end_matches('/').to_string())
                 .collect(),
             model: model.to_string(),
-            language: prompt_language(lang),
+            fingerprint: fingerprint(&system),
+            system,
+            prompt_source: prompts.source().cloned(),
             cache: if use_cache { Cache::open(model) } else { None },
             agent: ureq::AgentBuilder::new()
                 // A machine in the list that is asleep must cost one short
@@ -303,6 +187,13 @@ impl Proofreader {
     /// The servers still in play — after `preflight`, the ones that answered.
     pub fn endpoints(&self) -> &[String] {
         &self.endpoints
+    }
+
+    /// The directory the prompt was loaded from, or `None` for the built-in
+    /// one. Layer 2 reports it, so a run that was not using the repo's prompt
+    /// cannot be mistaken for one that was.
+    pub fn prompt_source(&self) -> Option<&PathBuf> {
+        self.prompt_source.as_ref()
     }
 
     /// Fail fast with an actionable message rather than after 400 pages.
@@ -427,7 +318,7 @@ impl Proofreader {
 
         let mut pending: Vec<(usize, &String)> = Vec::new();
         for (i, p) in paragraphs.iter().enumerate() {
-            if let Some(c) = self.cache.as_ref().and_then(|c| c.get(PROMPT_VERSION, p)) {
+            if let Some(c) = self.cache.as_ref().and_then(|c| c.get(&self.fingerprint, p)) {
                 stats.cache_hits += 1;
                 out[i] = self.judge(p, &c);
                 continue;
@@ -473,7 +364,7 @@ impl Proofreader {
             };
             for ((idx, orig), reply) in batch.iter().zip(replies) {
                 if let Some(c) = &self.cache {
-                    c.put(PROMPT_VERSION, orig, reply);
+                    c.put(&self.fingerprint, orig, reply);
                 }
                 out[*idx] = self.judge(orig, reply);
             }
@@ -621,7 +512,7 @@ impl Proofreader {
             "format": "json",
             "options": { "temperature": 0, "num_predict": 4096 },
             "messages": [
-                { "role": "system", "content": system_prompt(self.language) },
+                { "role": "system", "content": self.system },
                 { "role": "user", "content": user }
             ]
         });
@@ -652,6 +543,14 @@ fn report_progress<F: FnMut(usize, usize)>(shared: &Mutex<Shared<F>>, total: usi
     let mut sh = shared.lock().unwrap();
     let done = sh.done;
     (sh.progress)(done, total);
+}
+
+/// The half of the cache key that is about the question rather than the text.
+fn fingerprint(system: &str) -> String {
+    let mut h = blake3::Hasher::new();
+    h.update(&PROMPT_VERSION.to_le_bytes());
+    h.update(system.as_bytes());
+    h.finalize().to_hex().to_string()
 }
 
 /// A worker panicking is a bug, not a failed batch: carry the panic out to the
@@ -1102,52 +1001,9 @@ mod tests {
         .is_some());
     }
 
-    #[test]
-    fn the_prompt_names_the_language_when_it_knows_it() {
-        assert!(system_prompt(prompt_language("tur")).contains("The text is in Turkish."));
-        assert!(!system_prompt(None).contains("The text is in"));
-    }
 
-    #[test]
-    fn turkish_rules_reach_a_turkish_prompt_and_no_other() {
-        let tr = system_prompt(prompt_language("tur"));
-        let en = system_prompt(prompt_language("eng"));
-        for turkish_only in ["Lost `ğ`", "İstemsizce", "Clapham'daki", "sarımsaklı"] {
-            assert!(tr.contains(turkish_only), "Turkish prompt lost {turkish_only:?}");
-            assert!(!en.contains(turkish_only), "English prompt got {turkish_only:?}");
-        }
-        // The general half is in both, unchanged.
-        for general in ["Mangled closing quotation mark", "Tall thin letters", "Do not translate"] {
-            assert!(tr.contains(general));
-            assert!(en.contains(general));
-        }
-    }
 
-    #[test]
-    fn the_rules_are_numbered_without_a_gap_whether_or_not_there_is_a_pack() {
-        // The language pack is spliced into the middle of the list, so the
-        // numbering has to be produced, not written down.
-        for lang in [prompt_language("tur"), prompt_language("eng"), None] {
-            let p = system_prompt(lang);
-            let nums: Vec<usize> = p
-                .lines()
-                .filter_map(|l| l.split_once('.').and_then(|(n, _)| n.parse().ok()))
-                .collect();
-            let expected: Vec<usize> = (0..nums.len()).collect();
-            assert_eq!(nums, expected, "numbering broke for {lang:?}");
-        }
-    }
 
-    #[test]
-    fn the_limits_stay_after_every_fault_class() {
-        // The one ordering findings.md §4.5 measured, besides rule 0 first: a
-        // rule stated after the rule it contradicts does not hold.
-        let p = system_prompt(prompt_language("tur"));
-        let limits = p.find("Then obey these limits").expect("the limits are in there");
-        assert!(p.find("Lost `ğ`").unwrap() < limits);
-        assert!(p.find("Mangled closing").unwrap() < limits);
-        assert!(p.find("NEVER make a string longer").unwrap() < p.find("Mangled closing").unwrap());
-    }
 
     #[test]
     fn a_quote_appended_to_an_already_closed_span_is_refused() {
@@ -1176,11 +1032,5 @@ mod tests {
         assert_eq!(drift_reason("Ben de içeri girdim:'", "Ben de içeri girdim.\""), None);
     }
 
-    #[test]
-    fn the_prompt_states_the_fragment_rule() {
-        // Rule 0 is what stops the model balancing quotes across a page break.
-        let p = system_prompt(prompt_language("tur"));
-        assert!(p.contains("MIDDLE of a sentence"));
-        assert!(p.contains("NEVER make a string longer at its start or at its end"));
-    }
 }
+

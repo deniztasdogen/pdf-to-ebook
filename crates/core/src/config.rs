@@ -1,3 +1,4 @@
+use crate::env::{defaults, Defaults};
 use std::path::{Path, PathBuf};
 
 /// When to fall back to OCR. The decision is made *per page*, because a single
@@ -290,7 +291,17 @@ impl Config {
     /// Defaults chosen so that `Config::new(path)` on its own does something
     /// sensible: use the text layer, OCR only what has none, proofread only
     /// what we OCR'd, write markdown and EPUB.
+    ///
+    /// The compiled-in defaults, never the environment. `.env` is layer 1's
+    /// business — see [`Config::with_defaults`] — so that a `Config` built in
+    /// a test says the same thing on every machine.
     pub fn new(input: impl Into<PathBuf>) -> Self {
+        Config::with_defaults(input, &Defaults::default())
+    }
+
+    /// The same, starting from settings the front end has already read out of
+    /// the environment and `.env`.
+    pub fn with_defaults(input: impl Into<PathBuf>, d: &Defaults) -> Self {
         let input = input.into();
         let stem = input
             .file_stem()
@@ -302,13 +313,16 @@ impl Config {
             out_dir: dir,
             out_stem: stem,
             formats: vec![OutputFormat::Markdown, OutputFormat::Epub],
-            lang: "eng".to_string(),
+            lang: d.lang.clone(),
             ocr: OcrMode::default(),
             llm: LlmMode::default(),
-            llm_model: "gemma4:e4b".to_string(),
-            ollama_urls: vec!["http://localhost:11434".to_string()],
+            llm_model: d.llm_model.clone(),
+            // A list that will not parse is not worth failing a `Config` over:
+            // fall back to the one server that is always meant.
+            ollama_urls: parse_ollama_urls(&d.ollama_url)
+                .unwrap_or_else(|_| vec![defaults::OLLAMA_URL.to_string()]),
             page_breaks: PageBreakMode::default(),
-            dpi: 300.0,
+            dpi: d.dpi,
             pages: None,
             title: None,
             author: None,

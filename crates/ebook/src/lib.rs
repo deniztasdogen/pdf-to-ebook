@@ -8,7 +8,7 @@ pub mod epub;
 pub mod md_parse;
 pub mod mobi;
 
-use pdftomobi_core::{Document, Error, OutputFormat, PageBreakMode, Result};
+use pdf_to_ebook_core::{Document, Error, OutputFormat, PageBreakMode, Result};
 use std::path::Path;
 
 pub use md_parse::parse;

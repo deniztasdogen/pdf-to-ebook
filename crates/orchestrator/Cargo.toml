@@ -1,13 +1,13 @@
 [package]
-name = "pdftomobi-orchestrator"
+name = "pdf-to-ebook-orchestrator"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-pdftomobi-core    = { workspace = true }
-pdftomobi-extract = { workspace = true }
-pdftomobi-ebook   = { workspace = true }
+pdf-to-ebook-core    = { workspace = true }
+pdf-to-ebook-extract = { workspace = true }
+pdf-to-ebook-ebook   = { workspace = true }
 anyhow = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }

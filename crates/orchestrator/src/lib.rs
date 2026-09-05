@@ -23,10 +23,10 @@
 
 mod report;
 
-use pdftomobi_core::{
+use pdf_to_ebook_core::{
     Config, Document, Error, Event, InputKind, OutputFormat, Reporter, Result, Stage,
 };
-use pdftomobi_extract as extract;
+use pdf_to_ebook_extract as extract;
 use std::path::{Path, PathBuf};
 
 pub use report::render as render_report;
@@ -141,7 +141,7 @@ fn run_pdf(cfg: &Config, rep: &dyn Reporter) -> Result<Outcome> {
             .or(markdown_path.as_deref())
             .ok_or_else(|| Error::Other(anyhow::anyhow!("markdown is required to build an EPUB")))?;
         // Read the markdown back, so layer 4 works only from the file.
-        let from_disk = pdftomobi_ebook::read_markdown(md_path)?;
+        let from_disk = pdf_to_ebook_ebook::read_markdown(md_path)?;
         build_ebooks(cfg, &collect, &from_disk, &mut written)?;
     }
 
@@ -178,7 +178,7 @@ fn run_markdown(cfg: &Config, rep: &dyn Reporter) -> Result<Outcome> {
     std::fs::create_dir_all(&cfg.out_dir).map_err(|e| Error::io(&cfg.out_dir, e))?;
 
     collect.event(Event::Stage(Stage::ReadingMarkdown));
-    let mut document = pdftomobi_ebook::read_markdown(&cfg.input)?;
+    let mut document = pdf_to_ebook_ebook::read_markdown(&cfg.input)?;
     apply_metadata_overrides(cfg, &mut document);
     collect.event(Event::Info(format!(
         "{} paragraph(s), {} heading(s)",
@@ -219,7 +219,7 @@ fn run_markdown(cfg: &Config, rep: &dyn Reporter) -> Result<Outcome> {
             // Read the proofread markdown back, so layer 4 still works only
             // from a file, as it does for a PDF.
             Some(p) => {
-                let from_disk = pdftomobi_ebook::read_markdown(p)?;
+                let from_disk = pdf_to_ebook_ebook::read_markdown(p)?;
                 build_ebooks(cfg, &collect, &from_disk, &mut written)?;
             }
             None => build_ebooks(cfg, &collect, &document, &mut written)?,
@@ -290,7 +290,7 @@ fn proofread_stage(
         return Ok(out);
     };
 
-    let mut document = pdftomobi_ebook::read_markdown(src)?;
+    let mut document = pdf_to_ebook_ebook::read_markdown(src)?;
     // The overrides were applied to the document this file came from; applying
     // them again keeps them in the proofread file, which is what layer 4 reads.
     apply_metadata_overrides(cfg, &mut document);
@@ -346,10 +346,10 @@ fn build_ebooks(
     } else {
         (cfg.out_dir.join(format!("{}.tmp.epub", cfg.out_stem)), true)
     };
-    pdftomobi_ebook::epub::write(
+    pdf_to_ebook_ebook::epub::write(
         doc,
         &epub_path,
-        &pdftomobi_ebook::epub::EpubOptions {
+        &pdf_to_ebook_ebook::epub::EpubOptions {
             page_breaks: cfg.page_breaks,
         },
     )?;
@@ -361,12 +361,12 @@ fn build_ebooks(
     for f in kindle {
         rep.event(Event::Stage(Stage::Converting));
         let out = cfg.output_path(f);
-        match pdftomobi_ebook::kindle_from_epub(&epub_path, &out, f) {
+        match pdf_to_ebook_ebook::kindle_from_epub(&epub_path, &out, f) {
             Ok(()) => {
                 rep.event(Event::Wrote(out.clone()));
                 written.push(out);
                 if f == OutputFormat::Mobi
-                    && cfg.page_breaks == pdftomobi_core::PageBreakMode::Anchors
+                    && cfg.page_breaks == pdf_to_ebook_core::PageBreakMode::Anchors
                 {
                     // Verified: calibre's KF8 writer discards these.
                     rep.event(Event::Warning(
@@ -499,13 +499,13 @@ fn summarise_dropped(pages: &[extract::model::PageLayout]) -> Vec<(String, Strin
 /// Whether the external Kindle converter is installed. Exposed so a front end
 /// can warn before starting a long run rather than after it.
 pub fn converter_available() -> bool {
-    pdftomobi_ebook::mobi::available()
+    pdf_to_ebook_ebook::mobi::available()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdftomobi_core::{LlmMode, OutputFormat};
+    use pdf_to_ebook_core::{LlmMode, OutputFormat};
     use std::io::{BufRead, BufReader, Read, Write};
     use std::net::{TcpListener, TcpStream};
 
@@ -547,7 +547,7 @@ mod tests {
     /// A fresh directory holding `input.md`, plus a config that writes into it.
     fn fixture(name: &str) -> (PathBuf, Config) {
         let dir = std::env::temp_dir().join(format!(
-            "pdftomobi-orch-{}-{name}",
+            "pdf-to-ebook-orch-{}-{name}",
             std::process::id()
         ));
         let _ = std::fs::remove_dir_all(&dir);

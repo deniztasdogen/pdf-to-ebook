@@ -4,7 +4,7 @@ use crate::layout;
 use crate::model::{PageLayout, PageSource};
 use crate::ocr::{OcrEngine, TesseractCli};
 use crate::pdf::{decide, ocr_wins, PageDecision, PdfDoc};
-use pdftomobi_core::{
+use pdf_to_ebook_core::{
     Config, Document, Error, Event, Meta, OcrMode, Reporter, Result, Stage,
 };
 use rayon::prelude::*;
@@ -283,7 +283,7 @@ pub fn extract(cfg: &Config, rep: &dyn Reporter) -> Result<ExtractOutcome> {
             .file_name()
             .map(|s| s.to_string_lossy().to_string()),
         page_count: Some(pages.len()),
-        generator: Some(format!("pdftomobi {}", env!("CARGO_PKG_VERSION"))),
+        generator: Some(format!("pdf-to-ebook {}", env!("CARGO_PKG_VERSION"))),
     };
     rep.event(Event::Info(format!(
         "used the text layer on {text_pages} page(s), OCR on {ocr_pages}"

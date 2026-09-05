@@ -1,7 +1,7 @@
 //! The run report: what was dropped, what the model changed, what to check.
 
 use crate::Outcome;
-use pdftomobi_core::{Config, InputKind};
+use pdf_to_ebook_core::{Config, InputKind};
 use std::fmt::Write;
 
 pub fn render(cfg: &Config, o: &Outcome) -> String {

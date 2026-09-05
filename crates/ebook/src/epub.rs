@@ -7,7 +7,7 @@
 //! The container layout here was verified against calibre: `mimetype` must be
 //! the first entry and stored uncompressed, then `META-INF/`, then `OEBPS/`.
 
-use pdftomobi_core::{Block, Document, Error, PageBreakMode, Result, Span};
+use pdf_to_ebook_core::{Block, Document, Error, PageBreakMode, Result, Span};
 use std::io::Write;
 use zip::write::SimpleFileOptions;
 
@@ -322,7 +322,7 @@ fn zip_err(path: &std::path::Path) -> impl Fn(zip::result::ZipError) -> Error + 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdftomobi_core::Meta;
+    use pdf_to_ebook_core::Meta;
 
     fn doc() -> Document {
         Document {
@@ -360,7 +360,7 @@ mod tests {
 
     #[test]
     fn writes_a_zip_with_mimetype_first_and_uncompressed() {
-        let dir = std::env::temp_dir().join(format!("pdftomobi-epub-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("pdf-to-ebook-epub-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let p = dir.join("t.epub");
         write(&doc(), &p, &EpubOptions { page_breaks: PageBreakMode::Anchors }).unwrap();

@@ -4,7 +4,7 @@
 *.pdb
 
 # Cargo.lock is tracked on purpose: this workspace ships binaries
-# (pdftomobi, pdftomobi-gui), so the exact dependency set matters.
+# (pdf-to-ebook, pdf-to-ebook-gui), so the exact dependency set matters.
 
 # Conversion output
 # `out/` is scratch from earlier runs over the fixtures in `test/`, not

@@ -10,7 +10,7 @@
 
 use crate::geom::Rect;
 use crate::model::Word;
-use pdftomobi_core::{Error, Result};
+use pdf_to_ebook_core::{Error, Result};
 use std::io::Write;
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -29,9 +29,15 @@ pub struct TesseractCli {
 }
 
 impl Default for TesseractCli {
+    /// `TESSERACT_BIN` names the binary, from the environment or `.env`, for
+    /// the machines where it is not on `PATH`. Otherwise `tesseract` and let
+    /// the shell find it.
     fn default() -> Self {
         TesseractCli {
-            exe: std::env::var("TESSERACT_BIN").unwrap_or_else(|_| "tesseract".to_string()),
+            exe: pdf_to_ebook_core::env::var_or(
+                "TESSERACT_BIN",
+                pdf_to_ebook_core::env::defaults::TESSERACT_BIN,
+            ),
         }
     }
 }
@@ -96,7 +102,7 @@ impl OcrEngine for TesseractCli {
         static SEQ: AtomicU64 = AtomicU64::new(0);
         let dir = std::env::temp_dir();
         let stamp = format!(
-            "pdftomobi-{}-{}",
+            "pdf-to-ebook-{}-{}",
             std::process::id(),
             SEQ.fetch_add(1, Ordering::Relaxed)
         );

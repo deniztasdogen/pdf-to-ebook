@@ -21,8 +21,8 @@ crates/extract   crates/ebook    Layer 3 — extraction    Layer 4 — ebook
 ```
 
 `crates/core` exists so layer 1 can describe a job without pulling in pdfium or
-tesseract. It holds `Config`, the `Document` model, the error type and the
-progress events.
+tesseract. It holds `Config`, the `Document` model, the error type, the progress
+events, and the machine settings in `env.rs`.
 
 ## The markdown boundary is a real file
 
@@ -59,7 +59,7 @@ author: Jane Corry
 language: tr
 source: Jane Corry - Kocamın Karısı.pdf
 pages: 419
-generator: pdftomobi 0.1.0
+generator: pdf-to-ebook 0.1.0
 ---
 
 # 44
@@ -92,8 +92,8 @@ Layer 2 decides which of the two entry points to use from the input's
 extension (`core::InputKind`), so both front ends get this for free:
 
 ```sh
-pdftomobi notes.md --format epub
-pdftomobi book.md --format mobi --title "Kocamın Karısı" --author "Jane Corry"
+pdf-to-ebook notes.md --format epub
+pdf-to-ebook book.md --format mobi --title "Kocamın Karısı" --author "Jane Corry"
 ```
 
 Consequences worth knowing:
@@ -245,22 +245,25 @@ Four safeguards, each answering a measured failure — see `findings.md` §4:
 1. `"think": false` is mandatory (without it, replies come back empty).
 2. Batch length is validated; a mismatch re-runs the batch one at a time.
 3. An edit-distance guard refuses anything that drifts too far from the original.
-4. Results are cached on disk, keyed by `blake3(model + prompt version + text)`.
+4. Results are cached on disk, keyed by
+   `blake3(model + request shape + rendered prompt + text)`.
 
-#### The prompt is in two halves
+#### The prompt is two files, not two constants
 
-The system prompt is assembled, not written out whole:
+The system prompt is assembled from files under `prompts/`, not written out
+whole and not compiled in as string constants:
 
 ```text
-header + rule 0  ─┐
-general rules     ├─►  system_prompt()      proofread/mod.rs
-language rules    │    ▲
-limits           ─┘    │  --lang / GUI language box ─► Config::lang ─► prompt_language()
+prompts/proofread.md          ─┐
+  intro, rule 0, general       ├─►  Prompts::system_prompt()   proofread/prompt.rs
+  rules, limits, trailer       │    ▲
+prompts/languages/<code>.md   ─┘    │
+  label, language rules             │  --lang / GUI box ─► Config::lang ─► Prompts::language()
 ```
 
-`proofread/mod.rs` owns the part that is true of any Latin-script scan: the
+`proofread.md` owns the part that is true of any Latin-script scan: the
 page-fragment rule, the mangled quotation marks, the letter-shape confusions,
-the limits. `proofread/language.rs` owns the part that is only true of one
+the limits. `languages/<code>.md` owns the part that is only true of one
 language, keyed by the tesseract code the user already picks — for Turkish,
 lost `ğ`, dotted `İ`, the apostrophe before a case suffix, and the measured
 Turkish examples. The rules are numbered at assembly time, so a language pack
@@ -270,13 +273,32 @@ A language with no pack (every one but Turkish today) gets the general rules and
 its own name, which is what every language got before the split. The ordering
 that `findings.md` §4.5 measured is preserved: rule 0 first, the limits last.
 
+Three consequences of the prompt being a file:
+
+- **The built-in files are compiled in** with `include_str!`, so an installed
+  binary with no `prompts/` beside it renders exactly the same prompt. A
+  directory in `PDF_TO_EBOOK_PROMPT_DIR` overrides them **per file**, so one
+  holding only `languages/nld.md` adds Dutch and keeps everything else.
+- **The cache key follows the prompt.** A hand-bumped `PROMPT_VERSION` was
+  sound while the prompt was a constant and is not once it can be edited
+  between two runs, so the key carries `blake3` of the rendered prompt.
+  Re-tuning a rule invalidates the cache by construction; `PROMPT_VERSION`
+  now only tracks changes to the *request* shape.
+- **A run says where its prompt came from.** Every number in `findings.md` §4.5
+  is a number about a particular prompt, so a run using an overridden one
+  reports `prompt loaded from …` rather than passing for a stock run.
+
+A file that cannot be read, or that has no usable `## intro` and `## rules`,
+falls back to the built-in one with a warning. A bad prompt file must not cost
+you an extraction that already succeeded.
+
 #### Several servers at once
 
 `--ollama-url` takes a comma-separated list, and the pass runs one request in
 flight per entry:
 
 ```sh
-pdftomobi book.pdf --llm always \
+pdf-to-ebook book.pdf --llm always \
   --ollama-url http://desktop:11434,http://laptop:11434
 ```
 
@@ -336,12 +358,46 @@ both say so when you ask for a Kindle format.
 Both build a `Config` and hand it to layer 2. Neither knows whether the input
 is a PDF or a markdown file — layer 2 dispatches on that.
 
-- `crates/cli` — `pdftomobi`, takes a `.pdf` or a `.md`, with `--pages` for fast
-  iteration while tuning.
-- `crates/gui` — `pdftomobi-gui`, PDF only (its picker filters to `.pdf`), an
-  egui window: file picker (and drag-and-drop),
-  language, output formats, a "More options" panel, a progress bar and a log.
+- `crates/cli` — `pdf-to-ebook`, takes a `.pdf` or a `.md`, with `--pages` for
+  fast iteration while tuning.
+- `crates/gui` — `pdf-to-ebook-gui`, PDF only (its picker filters to `.pdf`),
+  an egui window: file picker (and drag-and-drop), language, output formats,
+  a "More options" panel, a progress bar and a log.
 
 The GUI runs the conversion on a worker thread and communicates over a channel.
 Its `Reporter` implementation forwards progress events to the UI and carries the
 cancel flag, so a long run can be stopped.
+
+### Where settings come from
+
+Layer 1 is also where the environment is read. `core::env` finds a `.env` at or
+above the working directory (or wherever `PDF_TO_EBOOK_ENV_FILE` points), and
+`Defaults::from_env` turns it into the values `clap` shows as `[default: …]`
+and the GUI opens its boxes on. Precedence, highest first:
+
+```text
+--llm-model on the command line
+PDF_TO_EBOOK_LLM_MODEL in the real environment
+PDF_TO_EBOOK_LLM_MODEL in .env
+the compiled-in default in core::env::defaults
+```
+
+`.env.example` is the documented list. Only settings about the **machine** are
+there — which ollama servers, which model, where the external tools live, the
+default language and DPI. `--format`, `--pages` and the crop describe the book
+in front of you and have no business in an environment file.
+
+Two deliberate properties:
+
+- **`Config::new` never reads the environment.** It uses the compiled-in
+  defaults, so a `Config` built in a test says the same thing on every machine.
+  `Config::with_defaults` is what layer 1 calls. That is why this is layer 1's
+  job and not layer 0's.
+- **Nothing is written back into the process environment.** The file is parsed
+  into a map and read from there. `std::env::set_var` mutates global state that
+  other threads may be reading, and this program runs OCR and proofreading on
+  thread pools.
+
+The two settings that layer 0 cannot hand down — `TESSERACT_BIN` and
+`EBOOK_CONVERT` — are read where the tool is launched, through the same
+accessor, so a `.env` covers them too.

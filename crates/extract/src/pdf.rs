@@ -2,7 +2,7 @@
 
 use crate::geom::{mad, median, Rect};
 use crate::model::Word;
-use pdftomobi_core::{Error, Result};
+use pdf_to_ebook_core::{Error, Result};
 use pdfium_render::prelude::*;
 
 /// Above this many extractable characters a page's text layer is trusted
@@ -392,8 +392,8 @@ pub fn clamp_range(range: Option<(usize, usize)>, n: usize) -> (usize, usize) {
 }
 
 /// Decide what to do with one page, given the mode.
-pub fn decide(info: &PageInfo, mode: pdftomobi_core::OcrMode) -> PageDecision {
-    use pdftomobi_core::OcrMode;
+pub fn decide(info: &PageInfo, mode: pdf_to_ebook_core::OcrMode) -> PageDecision {
+    use pdf_to_ebook_core::OcrMode;
     match mode {
         OcrMode::Always => PageDecision::Ocr,
         OcrMode::Never => {
@@ -436,7 +436,7 @@ pub fn typical_font_size(words: &[Word]) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdftomobi_core::OcrMode;
+    use pdf_to_ebook_core::OcrMode;
 
     fn info(text_chars: usize, image_objects: usize) -> PageInfo {
         PageInfo {

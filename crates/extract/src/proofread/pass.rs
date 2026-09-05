@@ -14,7 +14,7 @@
 
 use super::{Correction, Proofreader, Stats};
 use crate::pipeline::is_suspicious;
-use pdftomobi_core::{
+use pdf_to_ebook_core::{
     Block, Config, Document, Event, LlmMode, Reporter, Result, Span, Stage,
 };
 
@@ -91,6 +91,11 @@ pub fn proofread_document(
             }
         }
     }
+    if let Some(dir) = pr.prompt_source() {
+        // A run whose prompt is not the one in the repo must say so: every
+        // number in findings.md is a number about a particular prompt.
+        rep.event(Event::Info(format!("prompt loaded from {}", dir.display())));
+    }
     if pr.endpoints().len() > 1 {
         rep.event(Event::Info(format!(
             "proofreading on {} servers: {}",
@@ -155,8 +160,8 @@ fn editable(doc: &Document) -> Vec<Target> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdftomobi_core::progress::Silent;
-    use pdftomobi_core::Meta;
+    use pdf_to_ebook_core::progress::Silent;
+    use pdf_to_ebook_core::Meta;
 
     fn doc(blocks: Vec<Block>) -> Document {
         Document {

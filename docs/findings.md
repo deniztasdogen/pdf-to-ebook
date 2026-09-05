@@ -476,9 +476,10 @@ was half Turkish (`ın`/`nı` for `m`, `rı` collapsed to `n`), and every worked
 example in the list was a Turkish word. An English or Dutch book was told all of
 it, under a heading that correctly said the text was in English.
 
-v6 splits it in two — a general prompt in `proofread/mod.rs` and a per-language
-one in `proofread/language.rs`, selected by the tesseract code from `--lang` or
-the GUI. Turkish is the only pack, and it keeps every rule and every example v5
+v6 splits it in two — a general prompt and a per-language one, selected by the
+tesseract code from `--lang` or the GUI. (Both were string constants in
+`proofread/mod.rs` and `proofread/language.rs` when this was written; §4.7 moved
+them to files without changing a byte of the rendered prompt.) Turkish is the only pack, and it keeps every rule and every example v5
 had; the general rules keep their classes with English examples in place of the
 Turkish ones they were derived from.
 
@@ -495,6 +496,33 @@ has been checked against ollama:
 Re-run both fixtures before quoting a CER for v6. The claim that holds without a
 run is the narrow one: a non-Turkish book no longer receives Turkish
 orthography rules.
+
+### 4.7 The prompt moved to files (2026-09-05, byte-identical)
+
+The two halves of v6 became `prompts/proofread.md` and
+`prompts/languages/tur.md`. **The rendered prompt did not change**: the files
+were generated from the constants they replaced, and the output was diffed
+against a dump of the old renderer for Turkish, English and no language at all.
+All three are byte-identical. Nothing here moves any number in §4.5.
+
+What it buys is that re-tuning a rule is now an edit to a file rather than to a
+string constant, which is what §4.5 needs a lot of and §4.6 could not do
+cheaply. Two things had to change to make that safe:
+
+- **The cache key.** `PROMPT_VERSION` was a hand-bumped integer, which is sound
+  while the prompt is a constant compiled alongside it and unsound the moment
+  the prompt can be edited between two runs. The key now carries `blake3` of
+  the rendered prompt, so an edit invalidates the cache by construction and a
+  stale answer to a superseded prompt cannot be served. `PROMPT_VERSION`
+  survives, tracking only the request shape.
+- **What the tests assert against.** They use the compiled-in files, not
+  whatever `PDF_TO_EBOOK_PROMPT_DIR` points at, so a developer tuning a prompt
+  still gets an honest `cargo test`.
+
+The caution from §4.6 stands unchanged and now applies to the files: re-run
+both fixtures before quoting a CER for an edited prompt. The scoring corpus was
+removed on the same day (see the note in `CLAUDE.md`), so "re-run" means
+rebuilding an equivalent set first.
 
 ---
 
