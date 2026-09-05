@@ -133,6 +133,11 @@ or `EBOOK_CONVERT` in `.env` if either tool is installed somewhere unusual.
   cost real time, and known limitations
 - [`test/README.md`](test/README.md) — the seven fixtures and what each exercises
 
+## Support
+
+The tool is free and always will be. If it saved you an afternoon, you can
+[buy me a coffee](https://buymeacoffee.com/deniztasdogen).
+
 ## Licence
 
 Public domain, under [The Unlicense](UNLICENSE) — do whatever you like with it,
