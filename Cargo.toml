@@ -1,0 +1,33 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/extract",
+    "crates/ebook",
+    "crates/orchestrator",
+    "crates/cli",
+    "crates/gui",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.88"
+
+[workspace.dependencies]
+pdftomobi-core         = { path = "crates/core" }
+pdftomobi-extract      = { path = "crates/extract" }
+pdftomobi-ebook        = { path = "crates/ebook" }
+pdftomobi-orchestrator = { path = "crates/orchestrator" }
+
+anyhow      = "1"
+thiserror   = "2"
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+tracing     = "0.1"
+log         = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = "thin"

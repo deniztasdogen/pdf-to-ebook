@@ -1,0 +1,45 @@
+# Build
+/target
+**/*.rs.bk
+*.pdb
+
+# Cargo.lock is tracked on purpose: this workspace ships binaries
+# (pdftomobi, pdftomobi-gui), so the exact dependency set matters.
+
+# Conversion output
+# `out/` is scratch from earlier runs over the fixtures in `test/`, not
+# fixtures itself. The rest catch runs done anywhere else in the tree.
+/out
+*.epub
+*.mobi
+*.azw3
+*.report.md
+*.proofread.md
+
+# Logs and profiling
+*.log
+*.profraw
+perf.data
+perf.data.old
+flamegraph.svg
+
+# Local environment
+.env
+.env.local
+
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Patch and merge leftovers
+*.orig
+*.rej

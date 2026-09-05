@@ -1,0 +1,17 @@
+[package]
+name = "pdftomobi-gui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "pdftomobi-gui"
+path = "src/main.rs"
+
+[dependencies]
+pdftomobi-core         = { workspace = true }
+pdftomobi-orchestrator = { workspace = true }
+anyhow = { workspace = true }
+eframe = "0.35"
+egui   = "0.35"
+rfd    = "0.17"

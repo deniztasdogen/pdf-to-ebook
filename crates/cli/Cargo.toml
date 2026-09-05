@@ -1,0 +1,17 @@
+[package]
+name = "pdftomobi-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "pdftomobi"
+path = "src/main.rs"
+
+[dependencies]
+pdftomobi-core         = { workspace = true }
+pdftomobi-orchestrator = { workspace = true }
+anyhow = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
